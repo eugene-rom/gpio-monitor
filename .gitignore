@@ -1,0 +1,6 @@
+build/
+dist/
+bin/
+obj/
+*.depend
+*.layout

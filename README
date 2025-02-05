@@ -1,0 +1,13 @@
+IN DEVELOPMENT
+
+It will be sysfs-based gpio monitor.
+
+(for old kernels, where sysfs user interface for GPIO supported,
+see https://www.kernel.org/doc/Documentation/gpio/sysfs.txt)
+
+IN DEVELOPMENT
+
+Planned features:
+ - plain C, no dependencies, easy cross compile — suitable for small embedded devices
+ - sysfs-based — suitable for very old boards with linux kernel 2.4/2.6
+ - simple configuration file to define monitored gpio numbers and desired actions
