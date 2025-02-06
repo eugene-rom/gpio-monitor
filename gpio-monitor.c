@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <poll.h>
+#include <string.h>
 
 #include "gpio-monitor.h"
 
@@ -8,8 +9,15 @@
 //     TEST CODE
 // NON-FUNCTIONAL YET
 
+int read_config( const char *filename );
+
 int main( int argc, char *argv[] )
 {
+    // test reading config file
+    if ( read_config( "gpio-monitor.conf" ) == -1 ) {
+        return 1;
+    }
+
     if ( argc < 2 ) {
         printf( "Usage:\n   gpio-monitor <number> [<number> ...]\n" );
         return 0;
@@ -75,5 +83,80 @@ int main( int argc, char *argv[] )
 
         counter++;
     }
+    return 0;
+}
+
+int line_is_empty_or_comment( const char *line )
+{
+    int i;
+    int len = strlen( line );
+
+    // empty?
+    if ( ( len == 0 ) || ( line[ 0 ] == '\n' ) ) {
+        return 1;
+    }
+
+    // skip spaces
+    for ( i = 0; i < len; i++ ) {
+        if ( ( line[ i ] != ' ' ) && ( line[ i ] != '\t' ) ) {
+            break;
+        }
+    }
+
+    // only spaces?
+    if ( i == len ) {
+        return 1;
+    }
+
+    // comment?
+    if ( line[i] == '#' ) {
+        return 1;
+    }
+
+    return 0;
+}
+
+int read_config( const char *filename )
+{
+    int i;
+
+    FILE *f = fopen( filename, "r" );
+    if ( f == NULL ) {
+        perror( filename );
+    }
+    else
+    {
+        int line_number = 0;
+        int max_line_len = 4096;
+        char *line = malloc( max_line_len );
+
+        while ( fgets( line, max_line_len, f ) != NULL )
+        {
+            line_number++;
+
+            int len = strlen( line );
+            if ( len == ( max_line_len - 1 ) ) {
+                fprintf( stderr, "config file error: line %d too long\n", line_number );
+                return -1;
+            }
+
+            // get rid of CR/LF
+            for ( i = 0; i < len; i++ ) {
+                if ( ( line[ i ] == '\r' ) || ( line[ i ] == '\n' ) ) {
+                    line[ i ] = '\0';
+                    break;
+                }
+            }
+
+            if ( !line_is_empty_or_comment( line ) )
+            {
+                // PROCESS LINE
+
+            }
+        }
+        fclose( f );
+        free( line );
+    }
+
     return 0;
 }
