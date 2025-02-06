@@ -9,6 +9,21 @@
 //     TEST CODE
 // NON-FUNCTIONAL YET
 
+enum actionType { CMD };
+
+typedef struct _monitor_node
+{
+    int number;
+    int fd;
+    const char *edge_value;
+    int expected_value;
+    enum actionType action_type;
+    const char *action_command;
+} monitor_node;
+
+static int nodes_count = 0;
+static monitor_node nodes[];
+
 int read_config( const char *filename );
 
 int main( int argc, char *argv[] )
@@ -86,7 +101,7 @@ int main( int argc, char *argv[] )
     return 0;
 }
 
-int line_is_empty_or_comment( const char *line )
+static int line_is_empty_or_comment( const char *line )
 {
     int i;
     int len = strlen( line );
@@ -113,6 +128,112 @@ int line_is_empty_or_comment( const char *line )
         return 1;
     }
 
+    return 0;
+}
+
+static int copy_until_space( int pos, const char *source, char *dest, int maxlen )
+{
+    int i = 0;
+    while ( ( source[ i + pos ] != ' ' ) && ( source[ i + pos ] != '\t' ) )
+    {
+        dest[ i ] = source[ i + pos ];
+        i++;
+        if ( i >= maxlen ) {
+            return -1;
+        }
+    }
+    return i + pos;
+}
+
+static int skip_spaces( const char *line, int pos )
+{
+    while ( ( line[ pos ] == ' ' ) || ( line[ pos ] == '\t' ) ) {
+        pos++;
+    }
+
+    return pos;
+}
+
+static int process_config_line( const char *line, int line_number )
+{
+    monitor_node tmp;
+    int pos = 0;
+    char buf[ 1024 ];
+
+    // number
+    memset( buf, 0, sizeof( buf ) );
+    pos = skip_spaces( line, pos );
+    pos = copy_until_space( pos, line, buf, 10 );
+    if ( pos != -1 ) {
+        char *end;
+        tmp.number = strtol( buf, &end, 10 );
+        printf( "number = %d\n", tmp.number );
+    }
+    else {
+        fprintf( stderr, "config file error in line %d: too long number\n", line_number );
+        return -1;
+    }
+
+    // edge value
+    memset( buf, 0, sizeof( buf ) );
+    pos = skip_spaces( line, pos );
+    pos = copy_until_space( pos, line, buf, 10 );
+    if ( pos != -1 ) {
+        tmp.edge_value = strdup( buf );
+        printf( "edge_value = %s\n", tmp.edge_value );
+    }
+    else {
+        fprintf( stderr, "config file error in line %d: too long edge value\n", line_number );
+        return -1;
+    }
+
+    // expected value
+    memset( buf, 0, sizeof( buf ) );
+    pos = skip_spaces( line, pos );
+    pos = copy_until_space( pos, line, buf, 2 );
+    if ( pos != -1 )
+    {
+        if ( buf[0] == '0' ) {
+            tmp.expected_value = 0;
+        }
+        else if ( buf[0] == '1' ) {
+            tmp.expected_value = 1;
+        }
+        else if ( buf[0] == '*' ) {
+            tmp.expected_value = -1;
+        }
+        else {
+            fprintf( stderr, "config file error in line %d: incorrect expected value\n", line_number );
+            return -1;
+        }
+
+        printf( "expected_value = %d\n", tmp.expected_value );
+    }
+    else {
+        fprintf( stderr, "config file error in line %d: too long expected value\n", line_number );
+        return -1;
+    }
+
+    // action_type
+    memset( buf, 0, sizeof( buf ) );
+    pos = skip_spaces( line, pos );
+    pos = copy_until_space( pos, line, buf, 20 );
+    if ( pos != -1 )
+    {
+        if ( strcmp( "cmd", buf ) == 0 ) {
+            tmp.action_type = CMD;
+            printf( "action_type = %d\n", tmp.action_type );
+        }
+        else {
+            fprintf( stderr, "config file error in line %d: incorrect action type\n", line_number );
+        }
+    }
+    else {
+        fprintf( stderr, "config file error in line %d: too long action type\n", line_number );
+        return -1;
+    }
+
+    //monitor_node *node = malloc( sizeof( monitor_node ) );
     return 0;
 }
 
@@ -148,10 +269,10 @@ int read_config( const char *filename )
                 }
             }
 
-            if ( !line_is_empty_or_comment( line ) )
-            {
-                // PROCESS LINE
-
+            if ( !line_is_empty_or_comment( line ) ) {
+                if ( process_config_line( line, line_number ) == -1 ) {
+                    return -1;
+                }
             }
         }
         fclose( f );
