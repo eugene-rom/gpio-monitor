@@ -21,6 +21,7 @@
 		</Build>
 		<Compiler>
 			<Add option="-Wall" />
+			<Add option="-Werror-implicit-function-declaration -Werror=return-type" />
 		</Compiler>
 		<Unit filename="gpio-base-sysfs.c">
 			<Option compilerVar="CC" />
