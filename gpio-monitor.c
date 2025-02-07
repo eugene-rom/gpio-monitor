@@ -6,8 +6,8 @@
 
 #include "gpio-monitor.h"
 
-//#define DBG( format, arg ) printf( format, arg )
 #define DBG( format, arg )
+//#define DBG( format, arg ) printf( format, arg )
 
 enum actionType { CMD };
 
@@ -17,6 +17,7 @@ typedef struct _monitor_node
     int fd;
     const char *edge_value;
     int expected_value;
+    __useconds_t debouncing_delay;
     enum actionType action_type;
     const char *action_command;
 } monitor_node;
@@ -74,16 +75,24 @@ int main( int argc, char *argv[] )
             {
                 if ( pfds[i].revents & POLLPRI )
                 {
-                    int val = gpio_read_value_file( pfds[i].fd );
                     monitor_node *node = find_monitor_node( pfds[i].fd );
-                    if ( node != NULL ) {
-                        if ( ( val == node->expected_value ) || ( node->expected_value == -1 ) ) {
+                    if ( node != NULL )
+                    {
+                        int val, val2;
+                        val = val2 = gpio_read_value_file( pfds[i].fd );
+                        if ( node->debouncing_delay != 0 ) {
+                            usleep( node->debouncing_delay );
+                            val2 = gpio_read_value_file( pfds[i].fd );
+                        }
+
+                        if ( ( ( val != -1 ) && ( val == val2 ) )
+                             && ( ( val == node->expected_value ) || ( node->expected_value == -1 ) ) ) {
                             cmd_execute( node->action_command, node->number, val );
                         }
                     }
                 }
                 else if ( pfds[i].revents & POLLERR ) {
-                    printf( "ERR fd: %d\n", pfds[i].fd );
+                    fprintf( stderr, "POLLERR fd: %d\n", pfds[i].fd );
                 }
             }
         }
@@ -165,6 +174,8 @@ static int skip_spaces( const char *line, int pos )
 static int process_config_line( const char *line, int line_number )
 {
     monitor_node tmp;
+    memset( &tmp, 0, sizeof( tmp ) );
+
     int pos = 0;
     char buf[ 1024 ];
 
@@ -219,6 +230,20 @@ static int process_config_line( const char *line, int line_number )
     }
     else {
         config_error( line_number, "incorrect expected value" );
+        return -1;
+    }
+
+    // debounce value
+    memset( buf, 0, sizeof( buf ) );
+    pos = skip_spaces( line, pos );
+    pos = copy_until_space( pos, line, buf, 20 );
+    if ( pos != -1 ) {
+        char *end;
+        tmp.debouncing_delay = strtol( buf, &end, 10 ) * 1000;
+        DBG( "debouncing_delay = %d\n", tmp.debouncing_delay );
+    }
+    else {
+        config_error( line_number, "too long debouncing delay value" );
         return -1;
     }
 
