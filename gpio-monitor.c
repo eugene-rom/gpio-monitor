@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <poll.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "gpio-monitor.h"
 
@@ -48,7 +49,7 @@ int main( int argc, char *argv[] )
     fflush( stdout );
     for ( i = 0; i < nodes_count; i++ )
     {
-        nodes[i]->fd = gpio_open_value_file( nodes[i]->number );
+        nodes[i]->fd = gpio_open_value_file( nodes[i]->number, nodes[i]->edge_value );
         if ( nodes[ i ]->fd == -1 ) {
             return 0;
         }
@@ -262,6 +263,11 @@ static int process_config_line( const char *line, int line_number )
     memcpy( node, &tmp, sizeof( monitor_node ) );
 
     nodes = realloc( nodes, sizeof( monitor_node ) * nodes_count );
+    if ( nodes == NULL ) {
+        perror( "realloc failed" );
+        _exit(1);
+    }
+
     nodes[ nodes_count - 1 ] = node;
 
     return 0;
