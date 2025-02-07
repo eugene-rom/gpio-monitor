@@ -6,10 +6,6 @@
 
 #include "gpio-monitor.h"
 
-//  IN DEVELOPMENT
-//     TEST CODE
-// NON-FUNCTIONAL YET
-
 //#define DBG( format, arg ) printf( format, arg )
 #define DBG( format, arg )
 
@@ -45,7 +41,7 @@ int main( int argc, char *argv[] )
     }
     printf( ".\n" );
 
-    printf( "fds: " );
+    printf( "Open file descriptors: " );
     fflush( stdout );
     for ( i = 0; i < nodes_count; i++ )
     {
@@ -63,7 +59,7 @@ int main( int argc, char *argv[] )
         pfds[i].events = POLLPRI | POLLERR;
     }
 
-    printf( "Polling...\n" );
+    printf( "Polling for events...\n" );
     while ( 1 )
     {
         int ready = poll( pfds, nodes_count, -1 );
@@ -79,11 +75,11 @@ int main( int argc, char *argv[] )
                 if ( pfds[i].revents & POLLPRI )
                 {
                     int val = gpio_read_value_file( pfds[i].fd );
-                    printf( "PRI Value: %d\n", val );
-
                     monitor_node *node = find_monitor_node( pfds[i].fd );
-                    if ( ( val == node->expected_value ) || ( node->expected_value == -1 ) ) {
-                        cmd_execute( node->action_command, node->number, val );
+                    if ( node != NULL ) {
+                        if ( ( val == node->expected_value ) || ( node->expected_value == -1 ) ) {
+                            cmd_execute( node->action_command, node->number, val );
+                        }
                     }
                 }
                 else if ( pfds[i].revents & POLLERR ) {
