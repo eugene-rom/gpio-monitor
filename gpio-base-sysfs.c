@@ -12,7 +12,6 @@ static const char* SYSFS_GPIO_DIRECTION_TEMPLATE = "/sys/class/gpio/gpio%d/direc
 static const char* SYSFS_GPIO_EDGE_TEMPLATE      = "/sys/class/gpio/gpio%d/edge";
 static const char* SYSFS_GPIO_VALUE_TEMPLATE     = "/sys/class/gpio/gpio%d/value";
 static const char* DIRECTION_IN                  = "in\n";
-static const char* EDGE_FALLING                  = "falling\n";
 
 static void ferrmsg( const char *operation, const char *filename ) {
     fprintf( stderr, "%s error '%s': %s.\n", operation, filename, strerror( errno ) );
@@ -81,9 +80,8 @@ static int check_direction_value( int number ) {
                 SYSFS_GPIO_DIRECTION_TEMPLATE, DIRECTION_IN );
 }
 
-static int check_edge_value( int number ) {
-    return check_control_value( number,
-                SYSFS_GPIO_EDGE_TEMPLATE, EDGE_FALLING );
+static int check_edge_value( int number, const char *edge_value ) {
+    return check_control_value( number, SYSFS_GPIO_EDGE_TEMPLATE, edge_value );
 }
 
 static int do_export( int number ) {
@@ -92,7 +90,7 @@ static int do_export( int number ) {
     return write_control_file( SYSFS_GPIO_EXPORT, nchar );
 }
 
-int gpio_open_value_file( int number )
+int gpio_open_value_file( int number, const char *edge_value )
 {
     char *filename = malloc( PATH_MAX );
     snprintf( filename, PATH_MAX, SYSFS_GPIO_VALUE_TEMPLATE, number );
@@ -114,7 +112,7 @@ int gpio_open_value_file( int number )
         return -1;
     }
 
-    if ( check_edge_value( number ) != 0 ) {
+    if ( check_edge_value( number, edge_value ) != 0 ) {
         fprintf( stderr, "Unable to switch gpio number %d edge\n", number );
         free( filename );
         return -1;

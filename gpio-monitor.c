@@ -9,6 +9,9 @@
 //     TEST CODE
 // NON-FUNCTIONAL YET
 
+//#define DBG( format, arg ) printf( format, arg )
+#define DBG( format, arg )
+
 enum actionType { CMD };
 
 typedef struct _monitor_node
@@ -22,9 +25,10 @@ typedef struct _monitor_node
 } monitor_node;
 
 static int nodes_count = 0;
-static monitor_node nodes[];
+static monitor_node **nodes = NULL;
 
 int read_config( const char *filename );
+monitor_node *find_monitor_node( int fd );
 
 int main( int argc, char *argv[] )
 {
@@ -33,74 +37,77 @@ int main( int argc, char *argv[] )
         return 1;
     }
 
-    if ( argc < 2 ) {
-        printf( "Usage:\n   gpio-monitor <number> [<number> ...]\n" );
-        return 0;
-    }
-
-    nfds_t nfds = argc - 1;
     printf( "Monitoring numbers: " );
-    int numbers[ nfds ];
     int i;
-    for ( i = 0; i < nfds; i++ ) {
-        char *end;
-        numbers[ i ] = strtol( argv[ i + 1 ], &end, 10 );
-        printf( ( i == 0 ) ? "%d" : ", %d", numbers[ i ] );
+    for ( i = 0; i < nodes_count; i++ ) {
+        printf( ( i == 0 ) ? "%d" : ", %d", nodes[i]->number );
     }
     printf( ".\n" );
 
     printf( "fds: " );
-    int fds[ nfds ];
-    for ( i = 0; i < nfds; i++ )
+    fflush( stdout );
+    for ( i = 0; i < nodes_count; i++ )
     {
-        fds[i] = gpio_open_value_file( numbers[i] );
-        if ( fds[i] == -1 ) {
+        nodes[i]->fd = gpio_open_value_file( nodes[i]->number );
+        if ( nodes[ i ]->fd == -1 ) {
             return 0;
         }
-        printf( ( i == 0 ) ? "%d" : ", %d", fds[ i ] );
+        printf( ( i == 0 ) ? "%d" : ", %d", nodes[i]->fd );
     }
     printf( ".\n" );
 
-    nfds_t j;
-    struct pollfd *pfds = calloc( nfds, sizeof( struct pollfd ) );
-    for ( j = 0; j < nfds; j++ ) {
-        pfds[j].fd = fds[j];
-        pfds[j].events = POLLPRI | POLLERR;
+    struct pollfd *pfds = calloc( nodes_count, sizeof( struct pollfd ) );
+    for ( i = 0; i < nodes_count; i++ ) {
+        pfds[i].fd = nodes[i]->fd;
+        pfds[i].events = POLLPRI | POLLERR;
     }
 
-    int counter = 0;
-
+    printf( "Polling...\n" );
     while ( 1 )
     {
-        int ready = poll( pfds, nfds, -1 );
+        int ready = poll( pfds, nodes_count, -1 );
         if ( ready == -1 ) {
-            perror( "poll()" );
+            perror( "poll error" );
             break;
         }
-        printf( "Ready: %d\n", ready );
 
-        for ( j = 0; j < nfds; j++ )
+        for ( i = 0; i < nodes_count; i++ )
         {
-            if ( pfds[j].revents != 0 )
+            if ( pfds[i].revents != 0 )
             {
-                printf( "  #%d fd=%d; events: 0x%x\n", counter, pfds[j].fd, (int)pfds[j].revents );
+                if ( pfds[i].revents & POLLPRI )
+                {
+                    int val = gpio_read_value_file( pfds[i].fd );
+                    printf( "PRI Value: %d\n", val );
 
-                if ( pfds[j].revents & POLLPRI ) {
-                    int val = gpio_read_value_file( pfds[j].fd );
-                    printf( "#%d PRI Value: %d\n", counter, val );
+                    monitor_node *node = find_monitor_node( pfds[i].fd );
+                    if ( ( val == node->expected_value ) || ( node->expected_value == -1 ) ) {
+                        cmd_execute( node->action_command, node->number, val );
+                    }
                 }
-                else if ( pfds[j].revents & POLLERR ) {
-                    int val = gpio_read_value_file( pfds[j].fd );
-                    printf( "#%d ERR Value: %d\n", counter, val );
+                else if ( pfds[i].revents & POLLERR ) {
+                    printf( "ERR fd: %d\n", pfds[i].fd );
                 }
             }
         }
-
-        counter++;
     }
     return 0;
 }
 
+monitor_node *find_monitor_node( int fd )
+{
+    int i;
+    for ( i = 0; i < nodes_count; i++ ) {
+        if ( nodes[i]->fd == fd ) {
+            return nodes[i];
+        }
+    }
+    return NULL;
+}
+
+//
+// configuration parse section below
+//
 static int line_is_empty_or_comment( const char *line )
 {
     int i;
@@ -129,6 +136,10 @@ static int line_is_empty_or_comment( const char *line )
     }
 
     return 0;
+}
+
+static void config_error( int line_number, const char *msg ) {
+    fprintf( stderr, "config error at line %d: %s\n", line_number, msg );
 }
 
 static int copy_until_space( int pos, const char *source, char *dest, int maxlen )
@@ -167,10 +178,10 @@ static int process_config_line( const char *line, int line_number )
     if ( pos != -1 ) {
         char *end;
         tmp.number = strtol( buf, &end, 10 );
-        printf( "number = %d\n", tmp.number );
+        DBG( "number = %d\n", tmp.number );
     }
     else {
-        fprintf( stderr, "config file error in line %d: too long number\n", line_number );
+        config_error( line_number, "too long number" );
         return -1;
     }
 
@@ -180,10 +191,10 @@ static int process_config_line( const char *line, int line_number )
     pos = copy_until_space( pos, line, buf, 10 );
     if ( pos != -1 ) {
         tmp.edge_value = strdup( buf );
-        printf( "edge_value = %s\n", tmp.edge_value );
+        DBG( "edge_value = %s\n", tmp.edge_value );
     }
     else {
-        fprintf( stderr, "config file error in line %d: too long edge value\n", line_number );
+        config_error( line_number, "incorrect edge value" );
         return -1;
     }
 
@@ -203,14 +214,14 @@ static int process_config_line( const char *line, int line_number )
             tmp.expected_value = -1;
         }
         else {
-            fprintf( stderr, "config file error in line %d: incorrect expected value\n", line_number );
+            config_error( line_number, "incorrect expected value" );
             return -1;
         }
 
-        printf( "expected_value = %d\n", tmp.expected_value );
+        DBG( "expected_value = %d\n", tmp.expected_value );
     }
     else {
-        fprintf( stderr, "config file error in line %d: too long expected value\n", line_number );
+        config_error( line_number, "incorrect expected value" );
         return -1;
     }
 
@@ -222,18 +233,37 @@ static int process_config_line( const char *line, int line_number )
     {
         if ( strcmp( "cmd", buf ) == 0 ) {
             tmp.action_type = CMD;
-            printf( "action_type = %d\n", tmp.action_type );
+            DBG( "action_type = %d\n", tmp.action_type );
         }
         else {
-            fprintf( stderr, "config file error in line %d: incorrect action type\n", line_number );
+            config_error( line_number, "incorrect action type" );
         }
     }
     else {
-        fprintf( stderr, "config file error in line %d: too long action type\n", line_number );
+        config_error( line_number, "incorrect action type" );
         return -1;
     }
 
-    //monitor_node *node = malloc( sizeof( monitor_node ) );
+    // command value
+    memset( buf, 0, sizeof( buf ) );
+    pos = skip_spaces( line, pos );
+    pos = copy_until_space( pos, line, buf, sizeof( buf ) - 1 );
+    if ( pos != -1 ) {
+        tmp.action_command = strdup( buf );
+        DBG( "action_command = %s\n", tmp.action_command );
+    }
+    else {
+        config_error( line_number, "too long command value" );
+        return -1;
+    }
+
+    nodes_count++;
+    monitor_node *node = malloc( sizeof( monitor_node ) );
+    memcpy( node, &tmp, sizeof( monitor_node ) );
+
+    nodes = realloc( nodes, sizeof( monitor_node ) * nodes_count );
+    nodes[ nodes_count - 1 ] = node;
+
     return 0;
 }
 
