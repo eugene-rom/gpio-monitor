@@ -26,6 +26,9 @@
 		<Unit filename="cmd-execute.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="conf-parse.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="gpio-base-sysfs.c">
 			<Option compilerVar="CC" />
 		</Unit>
