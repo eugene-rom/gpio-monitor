@@ -2,18 +2,50 @@
 #include <stdlib.h>
 #include <poll.h>
 #include <unistd.h>
+#include <getopt.h>
 
 #include "gpio-monitor.h"
+
+const char * const DEFAULT_CONFIG = "/etc/gpio-monitor.conf";
 
 int nodes_count = 0;
 monitor_node **nodes = NULL;
 
 monitor_node *find_monitor_node( int fd );
 
+static struct option long_options[] = {
+    { "config", required_argument, NULL, 'c' },
+    { "help",   no_argument,       NULL, 'h' },
+    { 0,        0,                 0,    0   }
+};
+
 int main( int argc, char *argv[] )
 {
-    // test reading config file
-    if ( read_config( "gpio-monitor.conf" ) == -1 ) {
+    const char *conffile = DEFAULT_CONFIG;
+
+    int opt;
+    while ( ( opt = getopt_long( argc, argv, "", long_options, NULL ) ) != -1 )
+    {
+        switch ( opt )
+        {
+            case 'c':
+                conffile = optarg;
+                break;
+
+            case 'h':
+            default: /* '?' */
+                fprintf( stderr,
+                    "Usage: %s [OPTION]\n\n" \
+                    "--config=CONFIG_FILE   path to config file\n" \
+                    "--help                 display this short help and exit\n\n" \
+                    "With no CONFIG_FILE, '%s' used.\n",
+                    argv[0], DEFAULT_CONFIG );
+                exit( ( opt == '?' ) ? EXIT_FAILURE : EXIT_SUCCESS );
+        }
+    }
+
+    printf( "Using configuration file '%s'\n", conffile );
+    if ( read_config( conffile ) == -1 ) {
         return 1;
     }
 

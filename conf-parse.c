@@ -213,7 +213,7 @@ static int process_config_line( const char *line, int line_number )
     nodes = realloc( nodes, sizeof( monitor_node ) * nodes_count );
     if ( nodes == NULL ) {
         perror( "realloc failed" );
-        _exit(1);
+        _exit( EXIT_FAILURE );
     }
 
     nodes[ nodes_count - 1 ] = node;
@@ -228,6 +228,7 @@ int read_config( const char *filename )
     FILE *f = fopen( filename, "r" );
     if ( f == NULL ) {
         perror( filename );
+        return -1;
     }
     else
     {

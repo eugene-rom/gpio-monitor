@@ -1,13 +1,27 @@
 IN DEVELOPMENT
 
-It will be sysfs-based gpio monitor.
+This is sysfs-based GPIO monitor.
 
-(for old kernels, where sysfs user interface for GPIO supported,
-see https://www.kernel.org/doc/Documentation/gpio/sysfs.txt)
+Useful for old kernels, where only sysfs user interface for GPIO supported.
+(See https://www.kernel.org/doc/Documentation/gpio/sysfs.txt)
+Although sysfs interface for GPIO is deprecated in newer kernels, it is
+still present.
 
-IN DEVELOPMENT
-
-Planned features:
+Features:
  - plain C, no dependencies, easy cross compile — suitable for small embedded devices
  - sysfs-based — suitable for very old boards with linux kernel 2.4/2.6
  - simple configuration file to define monitored gpio numbers and desired actions
+
+TODO:
+ - new action type for sending messages via unix domain socket
+
+Compile:
+  Just run 'make' in project directory. Executable will be in ./build directory.
+
+Cross-compile:
+  Modify 'make-cross.sh' according to your toolschain. Run './make-cross.sh' in
+  project directory.
+
+Usage:
+   Modify gpio-monitor.conf according to your needs and put it in /etc directory
+   or use --config option to specify gpio-monitor.conf location.

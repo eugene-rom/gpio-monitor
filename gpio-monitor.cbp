@@ -23,6 +23,8 @@
 			<Add option="-Wall" />
 			<Add option="-Werror-implicit-function-declaration -Werror=return-type" />
 		</Compiler>
+		<Unit filename="Makefile" />
+		<Unit filename="README" />
 		<Unit filename="cmd-execute.c">
 			<Option compilerVar="CC" />
 		</Unit>
@@ -35,6 +37,7 @@
 		<Unit filename="gpio-monitor.c">
 			<Option compilerVar="CC" />
 		</Unit>
+		<Unit filename="gpio-monitor.conf" />
 		<Unit filename="gpio-monitor.h" />
 		<Extensions />
 	</Project>
