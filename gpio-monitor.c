@@ -3,6 +3,7 @@
 #include <poll.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <sys/wait.h>
 
 #include "gpio-monitor.h"
 
@@ -14,14 +15,27 @@ monitor_node **nodes = NULL;
 monitor_node *find_monitor_node( int fd );
 
 static struct option long_options[] = {
-    { "config", required_argument, NULL, 'c' },
-    { "help",   no_argument,       NULL, 'h' },
-    { 0,        0,                 0,    0   }
+    { "config",      required_argument, NULL, 'c' },
+    { "test-action", required_argument, NULL, 't' },
+    { "help",        no_argument,       NULL, 'h' },
+    { 0,             0,                 0,    0   }
 };
+
+static void execute_action( monitor_node *node, int gpio_value )
+{
+    if ( node->action_type == CMD ) {
+        cmd_execute( node, gpio_value );
+    }
+    else if ( node->action_type == UDS ) {
+        uds_message( node, gpio_value );
+    }
+}
 
 int main( int argc, char *argv[] )
 {
     const char *conffile = DEFAULT_CONFIG;
+    int test_number = -1;
+    int i;
 
     int opt;
     while ( ( opt = getopt_long( argc, argv, "", long_options, NULL ) ) != -1 )
@@ -32,11 +46,16 @@ int main( int argc, char *argv[] )
                 conffile = optarg;
                 break;
 
+            case 't':
+                test_number = strtol( optarg, NULL, 10 );
+                break;
+
             case 'h':
             default: /* '?' */
                 fprintf( stderr,
                     "Usage: %s [OPTION]\n\n" \
                     "--config=CONFIG_FILE   path to config file\n" \
+                    "--test-action=NUMBER   execute action for specified GPIO number and quit\n" \
                     "--help                 display this short help and exit\n\n" \
                     "With no CONFIG_FILE, '%s' used.\n",
                     argv[0], DEFAULT_CONFIG );
@@ -49,8 +68,32 @@ int main( int argc, char *argv[] )
         return 1;
     }
 
+    if ( test_number != -1 )
+    {
+        printf( "executing action for number %d...\n", test_number );
+
+        int executed = 0;
+        for ( i = 0; i < nodes_count; i++ )
+        {
+            if ( nodes[i]->number == test_number ) {
+                execute_action( nodes[i], 0 );
+                executed = 1;
+                break;
+            }
+        }
+
+        if ( executed ) {
+            wait( NULL ); // action forked, so wait
+            printf( "action executed.\n" );
+        }
+        else {
+            printf( "number %d not defined in config.\n", test_number );
+        }
+
+        return 0;
+    }
+
     printf( "Monitoring numbers: " );
-    int i;
     for ( i = 0; i < nodes_count; i++ ) {
         printf( ( i == 0 ) ? "%d" : ", %d", nodes[i]->number );
     }
@@ -100,8 +143,9 @@ int main( int argc, char *argv[] )
                         }
 
                         if ( ( ( val != -1 ) && ( val == val2 ) )
-                             && ( ( val == node->expected_value ) || ( node->expected_value == -1 ) ) ) {
-                            cmd_execute( node->action_command, node->number, val );
+                             && ( ( val == node->expected_value ) || ( node->expected_value == -1 ) ) )
+                        {
+                            execute_action( node, val );
                         }
                     }
                 }
@@ -111,6 +155,7 @@ int main( int argc, char *argv[] )
             }
         }
     }
+
     return 0;
 }
 

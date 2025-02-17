@@ -11,6 +11,7 @@
 				<Option object_output="obj/Release/" />
 				<Option type="1" />
 				<Option compiler="gcc" />
+				<Option parameters="--config=/home/eugene/projects/private/gpio-monitor/gpio-monitor.conf" />
 				<Compiler>
 					<Add option="-O2" />
 				</Compiler>
@@ -39,6 +40,9 @@
 		</Unit>
 		<Unit filename="gpio-monitor.conf" />
 		<Unit filename="gpio-monitor.h" />
+		<Unit filename="uds-message.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Extensions />
 	</Project>
 </CodeBlocks_project_file>

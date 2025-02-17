@@ -1,5 +1,3 @@
-IN DEVELOPMENT
-
 This is sysfs-based GPIO monitor.
 
 Useful for old kernels, where only sysfs user interface for GPIO supported.
@@ -11,6 +9,7 @@ Features:
  - plain C, no dependencies, easy cross compile — suitable for small embedded devices
  - sysfs-based — suitable for very old boards with linux kernel 2.4/2.6
  - simple configuration file to define monitored gpio numbers and desired actions
+ - actions: execute OS command or sending messages via unix domain sockets
 
 TODO:
  - new action type for sending messages via unix domain socket

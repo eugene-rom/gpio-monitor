@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/un.h>
 
 #include "gpio-monitor.h"
 
@@ -64,6 +65,54 @@ static int skip_spaces( const char *line, int pos )
     }
 
     return pos;
+}
+
+static int parse_uds_action( monitor_node *tmp, int line_number, const char *data, size_t data_maxlen )
+{
+    const char * const ACTION_VALUE_FORMAT_ERROR = "incorrect action value format";
+    char *token;
+    int i = 0;
+    while ( ( token = strtok( ( i == 0 ) ? (char *)data : NULL, ":" ) ) != NULL )
+    {
+        if ( i == 0 )
+        {
+            if ( strcmp( "STREAM", token ) == 0 ) {
+                tmp->socket_type = STREAM;
+            }
+            else if ( strcmp( "DGRAM", token ) == 0 ) {
+                tmp->socket_type = DGRAM;
+            }
+            else {
+                config_error( line_number, "incorrect socket type in action value" );
+                return -1;
+            }
+        }
+        else if ( i == 1 )
+        {
+            if ( strlen( token ) >= sizeof( ((struct sockaddr_un){}).sun_path ) ) {
+                config_error( line_number, "too long socket pathname in action value" );
+                return -1;
+            }
+
+            tmp->socket_pathname = strdup( token );
+        }
+        else if ( i == 2 ) {
+            tmp->socket_message = strdup( token );
+        }
+        else {
+            config_error( line_number, ACTION_VALUE_FORMAT_ERROR );
+            return -1;
+        }
+
+        i++;
+    }
+
+    if ( i != 3 ) {
+        config_error( line_number, ACTION_VALUE_FORMAT_ERROR );
+        return -1;
+    }
+
+    return 0;
 }
 
 static int process_config_line( const char *line, int line_number )
@@ -176,11 +225,16 @@ static int process_config_line( const char *line, int line_number )
 
         if ( strcmp( "cmd", buf ) == 0 ) {
             tmp.action_type = CMD;
-            DBG( "action_type = %d\n", tmp.action_type );
+        }
+        else if ( strcmp( "uds", buf ) == 0 ) {
+            tmp.action_type = UDS;
         }
         else {
             config_error( line_number, "incorrect action type" );
+            return -1;
         }
+
+        DBG( "action_type = %d\n", tmp.action_type );
     }
     else {
         config_error( line_number, "incorrect action type" );
@@ -194,15 +248,31 @@ static int process_config_line( const char *line, int line_number )
     if ( pos != -1 )
     {
         if ( rlen == 0 ) {
-            config_error( line_number, "empty command value" );
+            config_error( line_number, "empty action value" );
             return -1;
         }
 
-        tmp.action_command = strdup( buf );
-        DBG( "action_command = %s\n", tmp.action_command );
+        if ( tmp.action_type == CMD ) {
+            tmp.action_command = strdup( buf );
+            DBG( "action_command = %s\n", tmp.action_command );
+        }
+        else if ( tmp.action_type == UDS )
+        {
+            if ( parse_uds_action( &tmp, line_number, buf, sizeof( buf ) ) == -1 ) {
+                return -1;
+            }
+
+            DBG( "socket_type = %d\n", tmp.socket_type );
+            DBG( "socket_pathname = %s\n", tmp.socket_pathname );
+            DBG( "socket_message = %s\n", tmp.socket_message );
+        }
+        else {
+            config_error( line_number, "should not happen..." );
+            return -1;
+        }
     }
     else {
-        config_error( line_number, "too long command value" );
+        config_error( line_number, "too long action value" );
         return -1;
     }
 
