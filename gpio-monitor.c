@@ -68,6 +68,9 @@ int main( int argc, char *argv[] )
         return 1;
     }
 
+    // prevent unattended children from turning into zombies
+    signal( SIGCHLD, SIG_IGN );
+
     if ( test_number != -1 )
     {
         printf( "executing action for number %d...\n", test_number );
