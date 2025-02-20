@@ -68,7 +68,7 @@ int main( int argc, char *argv[] )
         return 1;
     }
 
-    // prevent unattended children from turning into zombies
+    // prevent unattended child processes from becoming zombies
     signal( SIGCHLD, SIG_IGN );
 
     if ( test_number != -1 )

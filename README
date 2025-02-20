@@ -11,11 +11,8 @@ Features:
  - simple configuration file to define monitored gpio numbers and desired actions
  - actions: execute OS command or sending messages via unix domain sockets
 
-TODO:
- - new action type for sending messages via unix domain socket
-
 Compile:
-  Just run 'make' in project directory. Executable will be in ./build directory.
+  Just run 'make' in project directory. Executable will be created in ./build directory.
 
 Cross-compile:
   Modify 'make-cross.sh' according to your toolschain. Run './make-cross.sh' in
