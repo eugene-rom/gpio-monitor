@@ -4,6 +4,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <errno.h>
+#include <syslog.h>
 
 #include "gpio-monitor.h"
 
@@ -11,7 +12,7 @@ static void uds_stream_message( monitor_node *node )
 {
     int s = socket( AF_UNIX, SOCK_STREAM, 0 );
     if ( s == -1 ) {
-        perror( "socket() error in uds_stream_message()" );
+        syslog( LOG_WARNING, "socket() error in uds_stream_message(): %m" );
         return;
     }
 
@@ -23,14 +24,14 @@ static void uds_stream_message( monitor_node *node )
 
     int ret = connect( s, (const struct sockaddr *)&addr, sizeof( struct sockaddr_un ) );
     if ( ret == -1 ) {
-        fprintf( stderr, "connect() error for addr '%s': %s.\n", node->socket_pathname, strerror( errno ) );
+        syslog( LOG_WARNING, "connect() error for addr '%s': %m", node->socket_pathname );
         close( s );
         return;
     }
 
     ret = write( s, node->socket_message, strlen( node->socket_message ) + 1 );
     if ( ret == -1 ) {
-        perror( "write() error in uds_stream_message()" );
+        syslog( LOG_WARNING, "write() error in uds_stream_message(): %m" );
     }
 
     close( s );
@@ -40,7 +41,7 @@ static void uds_dgram_message( monitor_node *node )
 {
     int s = socket( AF_UNIX, SOCK_DGRAM, 0 );
     if ( s == -1 ) {
-        perror( "socket() error in uds_dgram_message()" );
+        syslog( LOG_WARNING, "socket() error in uds_dgram_message(): %m" );
         return;
     }
 
@@ -52,7 +53,7 @@ static void uds_dgram_message( monitor_node *node )
 
     if ( sendto( s, node->socket_message, strlen( node->socket_message ) + 1, 0,
                         (const struct sockaddr *)&addr, sizeof(struct sockaddr_un) ) < 0 ) {
-        fprintf( stderr, "sendto() error for addr '%s': %s.\n", node->socket_pathname, strerror( errno ) );
+        syslog( LOG_WARNING, "sendto() error for addr '%s': %m", node->socket_pathname );
     }
 
     close( s );
@@ -63,7 +64,7 @@ void uds_message( monitor_node *node, int gpio_value )
 {
     int pid = fork();
     if ( pid == -1 ) {
-        perror( "fork error in uds_message" );
+        syslog( LOG_WARNING, "fork error in uds_message: %m" );
     }
     else if ( pid == 0 )
     {

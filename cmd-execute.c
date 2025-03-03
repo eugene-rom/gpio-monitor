@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <paths.h>
+#include <syslog.h>
 
 #include "gpio-monitor.h"
 
@@ -11,7 +12,7 @@ void cmd_execute( monitor_node *node, int gpio_value )
 {
     int pid = fork();
     if ( pid == -1 ) {
-        perror( "fork error in cmd_execute" );
+        syslog( LOG_WARNING, "fork error in cmd_execute: %m" );
     }
     else if ( pid == 0 )
     {
@@ -21,7 +22,7 @@ void cmd_execute( monitor_node *node, int gpio_value )
         char *argp[] = { "sh", "-c", buf, NULL };
         int res = execv( _PATH_BSHELL, argp );
         if ( res == -1 ) {
-            perror( "exec error in cmd_execute" );
+            syslog( LOG_WARNING, "exec error in cmd_execute: %m" );
             _exit( 127 );
         }
     }

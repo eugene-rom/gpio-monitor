@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <sys/wait.h>
+#include <syslog.h>
 
 #include "gpio-monitor.h"
 
@@ -16,6 +17,7 @@ monitor_node *find_monitor_node( int fd );
 
 static struct option long_options[] = {
     { "config",      required_argument, NULL, 'c' },
+    { "quiet",       no_argument,       NULL, 'q' },
     { "test-action", required_argument, NULL, 't' },
     { "help",        no_argument,       NULL, 'h' },
     { 0,             0,                 0,    0   }
@@ -35,6 +37,7 @@ int main( int argc, char *argv[] )
 {
     const char *conffile = DEFAULT_CONFIG;
     int test_number = -1;
+    int quiet = 0;
     int i;
 
     int opt;
@@ -46,6 +49,10 @@ int main( int argc, char *argv[] )
                 conffile = optarg;
                 break;
 
+            case 'q':
+                quiet = 1;
+                break;
+
             case 't':
                 test_number = strtol( optarg, NULL, 10 );
                 break;
@@ -55,6 +62,7 @@ int main( int argc, char *argv[] )
                 fprintf( stderr,
                     "Usage: %s [OPTION]\n\n" \
                     "--config=CONFIG_FILE   path to config file\n" \
+                    "--quiet                no messages to console (only to syslog)\n" \
                     "--test-action=NUMBER   execute action for specified GPIO number and quit\n" \
                     "--help                 display this short help and exit\n\n" \
                     "With no CONFIG_FILE, '%s' used.\n",
@@ -63,7 +71,10 @@ int main( int argc, char *argv[] )
         }
     }
 
-    printf( "Using configuration file '%s'\n", conffile );
+    int syslog_option = quiet ? 0 : LOG_CONS | LOG_PERROR;
+    openlog( NULL, syslog_option, LOG_USER );
+
+    syslog( LOG_INFO, "Using configuration file '%s'", conffile );
     if ( read_config( conffile ) == -1 ) {
         return 1;
     }
@@ -96,23 +107,17 @@ int main( int argc, char *argv[] )
         return 0;
     }
 
-    printf( "Monitoring numbers: " );
-    for ( i = 0; i < nodes_count; i++ ) {
-        printf( ( i == 0 ) ? "%d" : ", %d", nodes[i]->number );
-    }
-    printf( ".\n" );
-
-    printf( "Open file descriptors: " );
-    fflush( stdout );
     for ( i = 0; i < nodes_count; i++ )
     {
         nodes[i]->fd = gpio_open_value_file( nodes[i]->number, nodes[i]->edge_value );
         if ( nodes[ i ]->fd == -1 ) {
             return 0;
         }
-        printf( ( i == 0 ) ? "%d" : ", %d", nodes[i]->fd );
+
+        syslog( LOG_INFO,
+                "Monitoring number: %d, file descriptor: %d",
+                nodes[i]->number, nodes[i]->fd );
     }
-    printf( ".\n" );
 
     struct pollfd *pfds = calloc( nodes_count, sizeof( struct pollfd ) );
     for ( i = 0; i < nodes_count; i++ ) {
@@ -120,12 +125,12 @@ int main( int argc, char *argv[] )
         pfds[i].events = POLLPRI | POLLERR;
     }
 
-    printf( "Polling for events...\n" );
+    syslog( LOG_INFO, "Polling for events..." );
     while ( 1 )
     {
         int ready = poll( pfds, nodes_count, -1 );
         if ( ready == -1 ) {
-            perror( "poll error" );
+            syslog( LOG_ERR, "poll error: %m" );
             break;
         }
 
@@ -153,7 +158,7 @@ int main( int argc, char *argv[] )
                     }
                 }
                 else if ( pfds[i].revents & POLLERR ) {
-                    fprintf( stderr, "POLLERR fd: %d\n", pfds[i].fd );
+                    syslog( LOG_WARNING, "POLLERR fd: %d", pfds[i].fd );
                 }
             }
         }

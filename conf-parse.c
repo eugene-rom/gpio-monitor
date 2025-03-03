@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/un.h>
+#include <syslog.h>
 
 #include "gpio-monitor.h"
 
@@ -37,7 +38,7 @@ static int line_is_empty_or_comment( const char *line )
 }
 
 static void config_error( int line_number, const char *msg ) {
-    fprintf( stderr, "config error at line %d: %s\n", line_number, msg );
+    syslog( LOG_ERR, "config error at line %d: %s", line_number, msg );
 }
 
 static int copy_until_space( int pos, const char *source, char *dest, int maxlen, int *rlen )
@@ -282,7 +283,7 @@ static int process_config_line( const char *line, int line_number )
 
     nodes = realloc( nodes, sizeof( monitor_node ) * nodes_count );
     if ( nodes == NULL ) {
-        perror( "realloc failed" );
+        syslog( LOG_ERR, "realloc failed: %m" );
         _exit( EXIT_FAILURE );
     }
 
@@ -297,7 +298,7 @@ int read_config( const char *filename )
 
     FILE *f = fopen( filename, "r" );
     if ( f == NULL ) {
-        perror( filename );
+        syslog( LOG_ERR, "Error open '%s': %m", filename );
         return -1;
     }
     else
@@ -312,7 +313,7 @@ int read_config( const char *filename )
 
             int len = strlen( line );
             if ( len == ( max_line_len - 1 ) ) {
-                fprintf( stderr, "config file error: line %d too long\n", line_number );
+                syslog( LOG_ERR, "config file error: line %d too long", line_number );
                 return -1;
             }
 

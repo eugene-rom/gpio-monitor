@@ -5,6 +5,7 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <syslog.h>
 
 static const char* SYSFS_GPIO_EXPORT             = "/sys/class/gpio/export";
 //static const char* SYSFS_GPIO_UNEXPORT           = "/sys/class/gpio/unexport";
@@ -14,7 +15,7 @@ static const char* SYSFS_GPIO_VALUE_TEMPLATE     = "/sys/class/gpio/gpio%d/value
 static const char* DIRECTION_IN                  = "in\n";
 
 static void ferrmsg( const char *operation, const char *filename ) {
-    fprintf( stderr, "%s error '%s': %s.\n", operation, filename, strerror( errno ) );
+    syslog( LOG_ERR, "%s error '%s': %m", operation, filename );
 }
 
 static int write_control_file( const char *name, const char *data )
@@ -100,20 +101,20 @@ int gpio_open_value_file( int number, const char *edge_value )
     {
         // not exported, do export
         if ( do_export( number ) != 0 ) {
-            fprintf( stderr, "Unable to export gpio number '%d'\n", number );
+            syslog( LOG_ERR, "Unable to export gpio number '%d'", number );
             free( filename );
             return -1;
         }
     }
 
     if ( check_direction_value( number ) != 0 ) {
-        fprintf( stderr, "Unable to switch gpio number %d direction\n", number );
+        syslog( LOG_ERR, "Unable to switch gpio number %d direction", number );
         free( filename );
         return -1;
     }
 
     if ( check_edge_value( number, edge_value ) != 0 ) {
-        fprintf( stderr, "Unable to switch gpio number %d edge\n", number );
+        syslog( LOG_ERR, "Unable to switch gpio number %d edge", number );
         free( filename );
         return -1;
     }
@@ -132,20 +133,20 @@ int gpio_open_value_file( int number, const char *edge_value )
 int gpio_read_value_file( int fd )
 {
     if ( lseek( fd, 0, SEEK_SET ) == -1 ) {
-        fprintf( stderr, "Seek error, fd %d: %s.\n", fd, strerror( errno ) );
+        syslog( LOG_WARNING, "Seek error, fd %d: %m", fd );
         return -1;
     }
 
     char buf[ 8 ];
     memset( buf, 0, sizeof( buf ) );
     if ( read( fd, buf, sizeof( buf ) - 1 ) == -1 ) {
-        fprintf( stderr, "Read value error, fd %d: %s.\n", fd, strerror( errno ) );
+        syslog( LOG_WARNING, "Read value error, fd %d: %m", fd );
         return -1;
     }
 
     // value expected '0' or '1'
     if ( ( buf[0] != '0' ) && ( buf[0] != '1' ) ) {
-        fprintf( stderr, "Unexpected value from fd %d: %s.\n", fd, buf );
+        syslog( LOG_WARNING, "Unexpected value from fd %d: %s", fd, buf );
         return -1;
     }
 
