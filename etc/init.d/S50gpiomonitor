@@ -1,0 +1,24 @@
+#!/bin/sh
+
+#
+# service startup script for busybox init
+#
+
+# where executable is placed, change if needed
+prefix=/usr/local/bin
+base=gpio-monitor
+
+case "$1" in
+  start)
+	echo "Starting $base..."
+	$prefix/$base --quiet &
+        ;;
+  stop)
+	pid=`/bin/pidof $base`
+	if [ -n "$pid" ]; then
+		kill $pid
+	fi
+        ;;
+esac
+
+exit 0
