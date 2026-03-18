@@ -16,7 +16,7 @@ typedef struct _monitor_node
     int fd;
     const char *edge_value;
     int expected_value;
-    __useconds_t debouncing_delay;
+    useconds_t debouncing_delay;
     enum actionType action_type;
 
     // if action_type == CMD

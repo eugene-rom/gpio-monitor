@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <syslog.h>
+#include <string.h>
 
 #include "gpio-monitor.h"
 
