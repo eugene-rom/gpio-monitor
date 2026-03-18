@@ -201,7 +201,7 @@ static int process_config_line( const char *line, int line_number )
         }
 
         char *end;
-        tmp.debouncing_delay = strtol( buf, &end, 10 ) * 1000; // millis to micros
+        tmp.debouncing_delay = strtol( buf, &end, 10 );
         if ( end[0] != 0 ) {
             config_error( line_number, "incorrect debouncing delay value" );
             return -1;

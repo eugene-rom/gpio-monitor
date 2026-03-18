@@ -2,7 +2,9 @@ build/
 dist/
 bin/
 obj/
+.cache/
 *.cbp
 *.depend
 *.layout
 *-br.sh
+compile_commands.*

@@ -5,4 +5,4 @@ export CC=arm-linux-gcc
 export CFLAGS="-march=armv4t -mtune=arm920t"
 
 make clean
-make
+make -j$(nproc)

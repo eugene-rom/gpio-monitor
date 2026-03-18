@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <time.h>
 #include <poll.h>
 #include <unistd.h>
 #include <getopt.h>
@@ -10,10 +12,13 @@
 
 const char * const DEFAULT_CONFIG = "/etc/gpio-monitor.conf";
 
+const int DEBOUNCING_DELAY_FRACTION = 2000; // in microseconds
+
 int nodes_count = 0;
 monitor_node **nodes = NULL;
 
-monitor_node *find_monitor_node( int fd );
+static int64_t get_current_ms();
+static monitor_node *find_monitor_node( int fd );
 
 static struct option long_options[] = {
     { "config",      required_argument, NULL, 'c' },
@@ -145,15 +150,27 @@ int main( int argc, char *argv[] )
                     {
                         int val, val2;
                         val = val2 = gpio_read_value_file( pfds[i].fd );
-                        if ( node->debouncing_delay != 0 ) {
-                            usleep( node->debouncing_delay );
-                            val2 = gpio_read_value_file( pfds[i].fd );
-                        }
 
-                        if ( ( ( val != -1 ) && ( val == val2 ) )
-                             && ( ( val == node->expected_value ) || ( node->expected_value == -1 ) ) )
+                        if ( ( val == node->expected_value ) || ( node->expected_value == -1 ) )
                         {
-                            execute_action( node, val );
+                            if ( node->debouncing_delay != 0 )
+                            {
+                                int64_t t = get_current_ms();
+
+                                do
+                                {
+                                    usleep( DEBOUNCING_DELAY_FRACTION );
+                                    val2 = gpio_read_value_file( pfds[i].fd );
+                                    if ( val2 != val ) {
+                                        break;
+                                    }
+                                }
+                                while ( ( get_current_ms() - t ) < node->debouncing_delay );
+                            }
+
+                            if ( ( val != -1 ) && ( val == val2 ) ) {
+                                execute_action( node, val );
+                            }
                         }
                     }
                 }
@@ -167,7 +184,7 @@ int main( int argc, char *argv[] )
     return 0;
 }
 
-monitor_node *find_monitor_node( int fd )
+static monitor_node *find_monitor_node( int fd )
 {
     int i;
     for ( i = 0; i < nodes_count; i++ ) {
@@ -177,3 +194,12 @@ monitor_node *find_monitor_node( int fd )
     }
     return NULL;
 }
+
+static int64_t get_current_ms()
+{
+    struct timespec spec;
+    clock_gettime( CLOCK_MONOTONIC, &spec );
+
+    return (int64_t)spec.tv_sec * 1000 + (int64_t)spec.tv_nsec / 1000000;
+}
+
