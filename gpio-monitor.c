@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 #include <time.h>
 #include <poll.h>
 #include <unistd.h>
@@ -115,10 +116,19 @@ int main( int argc, char *argv[] )
 
     for ( i = 0; i < nodes_count; i++ )
     {
-        nodes[i]->fd = gpio_open_value_file( nodes[i]->number, nodes[i]->edge_value );
+        // for debounced pins, monitor both edges in sysfs to track press and release
+        // state transitions in last_value; nodes[i]->edge_value keeps the configured edge
+        const char *sysfs_edge = nodes[i]->edge_value;
+        if ( ( nodes[i]->debouncing_delay > 0 ) && ( strcmp( sysfs_edge, "none" ) != 0 ) ) {
+            sysfs_edge = "both";
+        }
+
+        nodes[i]->fd = gpio_open_value_file( nodes[i]->number, sysfs_edge );
         if ( nodes[ i ]->fd == -1 ) {
             return 0;
         }
+
+        nodes[i]->last_value = gpio_read_value_file( nodes[i]->fd );
 
         syslog( LOG_INFO,
                 "Monitoring number: %d, file descriptor: %d",
@@ -153,8 +163,7 @@ int main( int argc, char *argv[] )
                     monitor_node *node = find_monitor_node( pfds[i].fd );
                     if ( node != NULL )
                     {
-                        int val, val2;
-                        val = val2 = gpio_read_value_file( pfds[i].fd );
+                        int val = gpio_read_value_file( pfds[i].fd );
                         if ( val == -1 )
                         {
                             syslog( LOG_ERR, "Disabling monitoring for gpio %d (fd: %d) due to read error",
@@ -164,26 +173,52 @@ int main( int argc, char *argv[] )
                             continue;
                         }
 
-                        if ( ( val == node->expected_value ) || ( node->expected_value == -1 ) )
+                        if ( node->debouncing_delay != 0 )
                         {
-                            if ( node->debouncing_delay != 0 )
+                            int64_t t = get_current_ms();
+
+                            do
                             {
-                                int64_t t = get_current_ms();
-
-                                do
-                                {
-                                    usleep( DEBOUNCING_DELAY_FRACTION );
-                                    val2 = gpio_read_value_file( pfds[i].fd );
-                                    if ( val2 != val ) {
-                                        break;
-                                    }
+                                usleep( DEBOUNCING_DELAY_FRACTION );
+                                int val2 = gpio_read_value_file( pfds[i].fd );
+                                if ( val2 == -1 ) {
+                                    val = -1;
+                                    break;
                                 }
-                                while ( ( get_current_ms() - t ) < node->debouncing_delay );
+                                if ( val2 != val ) {
+                                    val = val2;
+                                    t = get_current_ms();
+                                }
                             }
+                            while ( ( get_current_ms() - t ) < node->debouncing_delay );
 
-                            if ( ( val != -1 ) && ( val == val2 ) ) {
-                                execute_action( node, val );
+                            if ( val == -1 )
+                            {
+                                syslog( LOG_ERR, "Disabling monitoring for gpio %d (fd: %d) due to read error",
+                                        node->number, pfds[i].fd );
+                                close( pfds[i].fd );
+                                pfds[i].fd = -1;
+                                continue;
                             }
+                        }
+
+                        if ( ( node->debouncing_delay > 0 ) || ( strcmp( node->edge_value, "both" ) == 0 ) )
+                        {
+                            if ( val == node->last_value ) {
+                                continue;
+                            }
+                            node->last_value = val;
+                        }
+
+                        if ( ( strcmp( node->edge_value, "falling" ) == 0 ) && ( val != 0 ) ) {
+                            continue;
+                        }
+                        if ( ( strcmp( node->edge_value, "rising" ) == 0 ) && ( val != 1 ) ) {
+                            continue;
+                        }
+
+                        if ( ( node->expected_value == -1 ) || ( val == node->expected_value ) ) {
+                            execute_action( node, val );
                         }
                     }
                 }

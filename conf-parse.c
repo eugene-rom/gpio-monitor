@@ -201,11 +201,12 @@ static int process_config_line( const char *line, int line_number )
         }
 
         char *end;
-        tmp.debouncing_delay = strtol( buf, &end, 10 );
-        if ( end[0] != 0 ) {
+        long delay = strtol( buf, &end, 10 );
+        if ( ( end[0] != 0 ) || ( delay < 0 ) ) {
             config_error( line_number, "incorrect debouncing delay value" );
             return -1;
         }
+        tmp.debouncing_delay = (int)delay;
         DBG( "debouncing_delay = %d\n", tmp.debouncing_delay );
     }
     else {
