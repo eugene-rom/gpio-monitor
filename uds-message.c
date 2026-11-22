@@ -1,9 +1,6 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
-#include <errno.h>
 #include <syslog.h>
 #include <string.h>
 
@@ -76,6 +73,6 @@ void uds_message( monitor_node *node, int gpio_value )
             uds_dgram_message( node );
         }
 
-        exit(0);
+        _exit(0);
     }
 }

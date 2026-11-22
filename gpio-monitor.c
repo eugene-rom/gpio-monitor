@@ -7,6 +7,7 @@
 #include <getopt.h>
 #include <sys/wait.h>
 #include <syslog.h>
+#include <errno.h>
 
 #include "gpio-monitor.h"
 
@@ -134,7 +135,11 @@ int main( int argc, char *argv[] )
     while ( 1 )
     {
         int ready = poll( pfds, nodes_count, -1 );
-        if ( ready == -1 ) {
+        if ( ready == -1 )
+        {
+            if ( errno == EINTR ) {
+                continue;
+            }
             syslog( LOG_ERR, "poll error: %m" );
             break;
         }
@@ -150,6 +155,14 @@ int main( int argc, char *argv[] )
                     {
                         int val, val2;
                         val = val2 = gpio_read_value_file( pfds[i].fd );
+                        if ( val == -1 )
+                        {
+                            syslog( LOG_ERR, "Disabling monitoring for gpio %d (fd: %d) due to read error",
+                                    node->number, pfds[i].fd );
+                            close( pfds[i].fd );
+                            pfds[i].fd = -1;
+                            continue;
+                        }
 
                         if ( ( val == node->expected_value ) || ( node->expected_value == -1 ) )
                         {
@@ -174,8 +187,10 @@ int main( int argc, char *argv[] )
                         }
                     }
                 }
-                else if ( pfds[i].revents & POLLERR ) {
-                    syslog( LOG_WARNING, "POLLERR fd: %d", pfds[i].fd );
+                else if ( pfds[i].revents & ( POLLERR | POLLHUP | POLLNVAL ) ) {
+                    syslog( LOG_ERR, "POLLERR/HUP/NVAL on fd %d, disabling monitoring", pfds[i].fd );
+                    close( pfds[i].fd );
+                    pfds[i].fd = -1;
                 }
             }
         }
