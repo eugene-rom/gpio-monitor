@@ -13,7 +13,7 @@ static const char* SYSFS_GPIO_EXPORT             = "/sys/class/gpio/export";
 static const char* SYSFS_GPIO_DIRECTION_TEMPLATE = "/sys/class/gpio/gpio%d/direction";
 static const char* SYSFS_GPIO_EDGE_TEMPLATE      = "/sys/class/gpio/gpio%d/edge";
 static const char* SYSFS_GPIO_VALUE_TEMPLATE     = "/sys/class/gpio/gpio%d/value";
-static const char* DIRECTION_IN                  = "in\n";
+static const char* DIRECTION_IN                  = "in";
 
 static void ferrmsg( const char *operation, const char *filename ) {
     syslog( LOG_ERR, "%s error '%s': %m", operation, filename );
@@ -53,7 +53,7 @@ static int check_control_value( int number, const char *nametemplate, const char
         return -1;
     }
 
-    char buf[ 8 ];
+    char buf[ 16 ];
     memset( buf, 0, sizeof( buf ) );
     if ( read( fd, buf, sizeof( buf ) - 1 ) == -1 ) {
         ferrmsg( "Read", filename );
@@ -62,8 +62,17 @@ static int check_control_value( int number, const char *nametemplate, const char
         return -1;
     }
 
+    buf[ strcspn( buf, "\r\n" ) ] = '\0';
+
     if ( strcmp( value, buf ) != 0 )
     {
+        if ( lseek( fd, 0, SEEK_SET ) == -1 ) {
+            ferrmsg( "Seek", filename );
+            close( fd );
+            free( filename );
+            return -1;
+        }
+
         if ( write( fd, value, strlen( value ) ) == -1 ) {
             ferrmsg( "Write", filename );
             close( fd );
