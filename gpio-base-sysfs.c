@@ -6,6 +6,8 @@
 #include <unistd.h>
 #include <syslog.h>
 
+#include "gpio-monitor.h"
+
 static const char* SYSFS_GPIO_EXPORT             = "/sys/class/gpio/export";
 //static const char* SYSFS_GPIO_UNEXPORT           = "/sys/class/gpio/unexport";
 static const char* SYSFS_GPIO_DIRECTION_TEMPLATE = "/sys/class/gpio/gpio%d/direction";
@@ -126,6 +128,13 @@ int gpio_open_value_file( int number, const char *edge_value )
     }
 
     free( filename );
+
+    // initial read to clear pending POLLPRI on newly opened sysfs value file
+    if ( gpio_read_value_file( fd ) == -1 ) {
+        close( fd );
+        return -1;
+    }
+
     return fd;
 }
 
