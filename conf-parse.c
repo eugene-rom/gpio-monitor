@@ -56,7 +56,34 @@ static int copy_until_space( int pos, const char *source, char *dest, int maxlen
             return -1;
         }
     }
+    dest[ i ] = 0;
     return i + pos;
+}
+
+static int copy_rest_of_line( int pos, const char *source, char *dest, int maxlen, int *rlen )
+{
+    size_t len = strlen( source + pos );
+    while ( ( len > 0 ) && ( ( source[ pos + len - 1 ] == ' ' ) || ( source[ pos + len - 1 ] == '\t' ) ) ) {
+        len--;
+    }
+
+    if ( len >= (size_t)maxlen ) {
+        *rlen = 0;
+        return -1;
+    }
+
+    memcpy( dest, source + pos, len );
+    dest[ len ] = 0;
+    *rlen = (int)len;
+    return pos + (int)len;
+}
+
+static void free_node_fields( monitor_node *node )
+{
+    free( (void *)node->edge_value );
+    free( (void *)node->action_command );
+    free( (void *)node->socket_pathname );
+    free( (void *)node->socket_message );
 }
 
 static int skip_spaces( const char *line, int pos )
@@ -179,6 +206,7 @@ static int process_config_line( const char *line, int line_number )
         }
         else {
             config_error( line_number, "incorrect expected value" );
+            free_node_fields( &tmp );
             return -1;
         }
 
@@ -186,6 +214,7 @@ static int process_config_line( const char *line, int line_number )
     }
     else {
         config_error( line_number, "incorrect expected value" );
+        free_node_fields( &tmp );
         return -1;
     }
 
@@ -197,6 +226,7 @@ static int process_config_line( const char *line, int line_number )
     {
         if ( rlen == 0 ) {
             config_error( line_number, "empty debouncing delay value" );
+            free_node_fields( &tmp );
             return -1;
         }
 
@@ -204,6 +234,7 @@ static int process_config_line( const char *line, int line_number )
         long delay = strtol( buf, &end, 10 );
         if ( ( end[0] != 0 ) || ( delay < 0 ) ) {
             config_error( line_number, "incorrect debouncing delay value" );
+            free_node_fields( &tmp );
             return -1;
         }
         tmp.debouncing_delay = (int)delay;
@@ -211,6 +242,7 @@ static int process_config_line( const char *line, int line_number )
     }
     else {
         config_error( line_number, "too long debouncing delay value" );
+        free_node_fields( &tmp );
         return -1;
     }
 
@@ -222,6 +254,7 @@ static int process_config_line( const char *line, int line_number )
     {
         if ( rlen == 0 ) {
             config_error( line_number, "empty action type" );
+            free_node_fields( &tmp );
             return -1;
         }
 
@@ -233,6 +266,7 @@ static int process_config_line( const char *line, int line_number )
         }
         else {
             config_error( line_number, "incorrect action type" );
+            free_node_fields( &tmp );
             return -1;
         }
 
@@ -240,17 +274,19 @@ static int process_config_line( const char *line, int line_number )
     }
     else {
         config_error( line_number, "incorrect action type" );
+        free_node_fields( &tmp );
         return -1;
     }
 
     // command value
     memset( buf, 0, sizeof( buf ) );
     pos = skip_spaces( line, pos );
-    pos = copy_until_space( pos, line, buf, sizeof( buf ) - 1, &rlen );
+    pos = copy_rest_of_line( pos, line, buf, sizeof( buf ), &rlen );
     if ( pos != -1 )
     {
         if ( rlen == 0 ) {
             config_error( line_number, "empty action value" );
+            free_node_fields( &tmp );
             return -1;
         }
 
@@ -261,6 +297,7 @@ static int process_config_line( const char *line, int line_number )
         else if ( tmp.action_type == UDS )
         {
             if ( parse_uds_action( &tmp, line_number, buf, sizeof( buf ) ) == -1 ) {
+                free_node_fields( &tmp );
                 return -1;
             }
 
@@ -270,11 +307,13 @@ static int process_config_line( const char *line, int line_number )
         }
         else {
             config_error( line_number, "should not happen..." );
+            free_node_fields( &tmp );
             return -1;
         }
     }
     else {
         config_error( line_number, "too long action value" );
+        free_node_fields( &tmp );
         return -1;
     }
 
@@ -282,7 +321,7 @@ static int process_config_line( const char *line, int line_number )
     monitor_node *node = malloc( sizeof( monitor_node ) );
     memcpy( node, &tmp, sizeof( monitor_node ) );
 
-    nodes = realloc( nodes, sizeof( monitor_node ) * nodes_count );
+    nodes = realloc( nodes, sizeof( monitor_node * ) * nodes_count );
     if ( nodes == NULL ) {
         syslog( LOG_ERR, "realloc failed: %m" );
         _exit( EXIT_FAILURE );
@@ -315,6 +354,8 @@ int read_config( const char *filename )
             int len = strlen( line );
             if ( len == ( max_line_len - 1 ) ) {
                 syslog( LOG_ERR, "config file error: line %d too long", line_number );
+                fclose( f );
+                free( line );
                 return -1;
             }
 
@@ -328,6 +369,8 @@ int read_config( const char *filename )
 
             if ( !line_is_empty_or_comment( line ) ) {
                 if ( process_config_line( line, line_number ) == -1 ) {
+                    fclose( f );
+                    free( line );
                     return -1;
                 }
             }
